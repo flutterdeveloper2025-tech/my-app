@@ -1,0 +1,95 @@
+pipeline {
+    agent any
+
+    environment {
+        DOCKER_HUB   = "anas025"                  // Docker Hub username
+        IMAGE_NAME   = "for-docker-app"           // Docker Hub repo name
+        IMAGE_TAG    = "dev-${BUILD_NUMBER}"      // Version tag (auto from Jenkins)
+        FULL_IMAGE   = "${DOCKER_HUB}/${IMAGE_NAME}:${IMAGE_TAG}"
+        LATEST_IMAGE = "${DOCKER_HUB}/${IMAGE_NAME}:dev-latest"
+        NAMESPACE    = "dev"                       // Kubernetes namespace
+    }
+
+    stages {
+
+        stage('Checkout') {
+            steps {
+                git branch: 'for_dev',
+                    url: 'https://github.com/flutterdeveloper2025-tech/Docker_registry.git'
+            }
+        }
+
+        stage('Setup Kubeconfig') {
+            steps {
+                withCredentials([file(credentialsId: 'kubernetes_config', variable: 'KUBECONFIG_FILE')]) {
+                    sh """
+                    mkdir -p \$HOME/.kube
+                    cp \$KUBECONFIG_FILE \$HOME/.kube/config
+                    chmod 600 \$HOME/.kube/config
+                    """
+                }
+            }
+        }
+
+        stage('Build Docker Image') {
+            steps {
+                sh """
+                docker build -t $FULL_IMAGE .
+                docker tag $FULL_IMAGE $LATEST_IMAGE
+                """
+            }
+        }
+
+        stage('Docker Login') {
+            steps {
+                withCredentials([usernamePassword(credentialsId: 'docker_registry_dev',
+                    usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                    sh "echo \$PASS | docker login -u \$USER --password-stdin"
+                }
+            }
+        }
+
+        stage('Push Image to Docker Hub') {
+            steps {
+                sh """
+                docker push $FULL_IMAGE
+                docker push $LATEST_IMAGE
+                """
+            }
+        }
+
+        stage('Deploy to Kubernetes DEV') {
+            steps {
+                withEnv(["KUBECONFIG=$HOME/.kube/config"]) {
+                    // Update deployment file with new image
+                    sh "sed -i 's|image:.*|image: $FULL_IMAGE|' k8s/dev-deployment.yaml"
+
+                    // Apply deployment and service
+                    sh "kubectl apply -f k8s/dev-deployment.yaml -n $NAMESPACE"
+                    sh "kubectl apply -f k8s/dev-service.yaml -n $NAMESPACE"
+                }
+            }
+        }
+
+        stage('Smoke Test') {
+            steps {
+                withEnv(["KUBECONFIG=$HOME/.kube/config"]) {
+                    sh """
+                    EXTERNAL_IP=\$(kubectl get svc mywebsite-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+                    STATUS=\$(curl -o /dev/null -s -w "%{http_code}" http://\$EXTERNAL_IP)
+                    if [ "\$STATUS" != "200" ]; then
+                        echo "❌ DEV App not reachable at \$EXTERNAL_IP"
+                        exit 1
+                    fi
+                    echo "✅ DEV App running successfully at \$EXTERNAL_IP"
+                    """
+                }
+            }
+        }
+    }
+
+    post {
+        success { echo "🎉 DEV deployment to Kubernetes successful" }
+        failure { echo "❌ DEV deployment failed" }
+    }
+}
