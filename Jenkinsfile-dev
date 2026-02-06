@@ -79,8 +79,9 @@ pipeline {
                 git config user.email "jenkins@example.com"
                 git config user.name "Jenkins CI"
 
-                # Safely set remote URL with credentials
-                git remote set-url origin https://\$USER:\$PASS@github.com/flutterdeveloper2025-tech/my-app-manifests
+                # Setup Git credential helper
+                git config credential.helper store
+                echo "https://\$USER:\$PASS@github.com" > ~/.git-credentials
 
                 # Commit and push changes
                 git add dev/dev-deployment.yaml
@@ -91,6 +92,7 @@ pipeline {
         }
     }
 }
+
 
         stage('ArgoCD Sync') {
             steps {
