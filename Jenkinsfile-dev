@@ -67,30 +67,26 @@ pipeline {
         }
 
         stage('Update Deployment YAML & Push') {
-            steps {
-                dir('manifests') {
-                    withCredentials([usernamePassword(credentialsId: 'github_creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                        sh """
-                        # Update image in DEV deployment YAML
-                        sed -i 's|image:.*|image: $FULL_IMAGE|' dev/dev-deployment.yaml
+    steps {
+        dir('manifests') {
+            withCredentials([usernamePassword(credentialsId: 'github_creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                sh """
+                # Update image
+                sed -i 's|image:.*|image: $FULL_IMAGE|' dev/dev-deployment.yaml
 
-                        # Git config
-                        git config user.email "jenkins@example.com"
-                        git config user.name "Jenkins CI"
+                # Git config
+                git config user.email "jenkins@example.com"
+                git config user.name "Jenkins CI"
 
-                        # Setup Git credential helper
-                        git config credential.helper store
-                        echo "https://\$USER:\$PASS@github.com" > ~/.git-credentials
-
-                        # Commit and push changes
-                        git add dev/dev-deployment.yaml
-                        git commit -m "Update DEV image tag to $FULL_IMAGE" || echo "No changes to commit"
-                        git push origin dev
-                        """
-                    }
-                }
+                # Use a temporary credential file for this session
+                git -c credential.helper="!f() { echo username=\$USER; echo password=\$PASS; }; f" add dev/dev-deployment.yaml
+                git -c credential.helper="!f() { echo username=\$USER; echo password=\$PASS; }; f" commit -m "Update DEV image tag to $FULL_IMAGE" || echo "No changes to commit"
+                git -c credential.helper="!f() { echo username=\$USER; echo password=\$PASS; }; f" push origin dev
+                """
             }
         }
+    }
+}
 
         stage('ArgoCD Sync') {
             steps {
