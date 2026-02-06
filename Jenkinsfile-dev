@@ -66,7 +66,7 @@ pipeline {
                 withCredentials([usernamePassword(credentialsId: 'github_creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
                     sh """
                     # Update image tag in dev deployment YAML
-                    sed -i 's|image:.*|image: $FULL_IMAGE|' dev/deployment.yaml
+                    sed -i 's|image:.*|image: $FULL_IMAGE|' manifests/dev/dev-deployment.yaml
 
                     # Git config
                     git config user.email "jenkins@example.com"
