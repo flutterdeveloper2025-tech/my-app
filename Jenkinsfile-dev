@@ -14,8 +14,8 @@ pipeline {
 
         stage('Checkout') {
             steps {
-                git branch: 'for_dev',
-                    url: 'https://github.com/flutterdeveloper2025-tech/Docker_registry.git'
+                git branch: 'dev',
+                    url: 'https://github.com/flutterdeveloper2025-tech/my-app/tree/dev'
             }
         }
 
