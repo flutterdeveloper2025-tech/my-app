@@ -21,16 +21,6 @@ pipeline {
             }
         }
 
-        stage('Checkout Manifests Repo') {
-            steps {
-                dir('manifests') {
-                    git branch: 'dev',
-                        url: 'https://github.com/flutterdeveloper2025-tech/my-app-manifests',
-                        changelog: false
-                }
-            }
-        }
-
         stage('Setup Kubeconfig') {
             steps {
                 withCredentials([file(credentialsId: 'kubernetes_config', variable: 'KUBECONFIG_FILE')]) {
@@ -61,45 +51,6 @@ pipeline {
                     echo \$PASS | docker login -u \$USER --password-stdin
                     docker push $FULL_IMAGE
                     docker push $LATEST_IMAGE
-                    """
-                }
-            }
-        }
-
-        stage('Update Deployment YAML & Push') {
-            steps {
-                dir('manifests') {
-                    withCredentials([string(credentialsId: 'github_pat', variable: 'GITHUB_PAT')]) {
-                        sh """
-                        # Update image in dev deployment YAML
-                        sed -i 's|image:.*|image: $FULL_IMAGE|' dev/dev-deployment.yaml
-
-                        # Git config
-                        git config user.email "jenkins@example.com"
-                        git config user.name "Jenkins CI"
-
-                        # Set remote URL with PAT
-                        git remote set-url origin https://\$GITHUB_PAT@github.com/flutterdeveloper2025-tech/my-app-manifests.git
-
-                        # Commit only if changes exist
-                        if ! git diff --quiet dev/dev-deployment.yaml; then
-                            git add dev/dev-deployment.yaml
-                            git commit -m "[ci skip] Update DEV image tag to $FULL_IMAGE"
-                            git push origin dev
-                        else
-                            echo "✅ No changes in deployment YAML, skipping push"
-                        fi
-                        """
-                    }
-                }
-            }
-        }
-
-        stage('ArgoCD Sync') {
-            steps {
-                withEnv(["KUBECONFIG=$HOME/.kube/config"]) {
-                    sh """
-                    argocd app sync myapp-dev || echo "ArgoCD sync failed, check manually"
                     """
                 }
             }
