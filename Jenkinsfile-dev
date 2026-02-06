@@ -68,26 +68,29 @@ pipeline {
         }
 
         stage('Update Deployment YAML') {
-            steps {
-                dir('manifests') {
-                    withCredentials([usernamePassword(credentialsId: 'github_creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                        sh """
-                        # Update image in dev deployment YAML
-                        sed -i 's|image:.*|image: $FULL_IMAGE|' dev/dev-deployment.yaml
+    steps {
+        dir('manifests') {
+            withCredentials([usernamePassword(credentialsId: 'github_creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                sh """
+                # Update image in dev deployment YAML
+                sed -i 's|image:.*|image: $FULL_IMAGE|' dev/dev-deployment.yaml
 
-                        # Git config
-                        git config user.email "jenkins@example.com"
-                        git config user.name "Jenkins CI"
+                # Git config
+                git config user.email "jenkins@example.com"
+                git config user.name "Jenkins CI"
 
-                        # Commit and push changes
-                        git add dev/dev-deployment.yaml
-                        git commit -m "Update DEV image tag to $FULL_IMAGE" || echo "No changes to commit"
-                        git push https://\$USER:\$PASS@github.com/flutterdeveloper2025-tech/my-app-manifests dev
-                        """
-                    }
-                }
+                # Safely set remote URL with credentials
+                git remote set-url origin https://\$USER:\$PASS@github.com/flutterdeveloper2025-tech/my-app-manifests
+
+                # Commit and push changes
+                git add dev/dev-deployment.yaml
+                git commit -m "Update DEV image tag to $FULL_IMAGE" || echo "No changes to commit"
+                git push origin dev
+                """
             }
         }
+    }
+}
 
         stage('ArgoCD Sync') {
             steps {
