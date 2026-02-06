@@ -14,16 +14,20 @@ pipeline {
 
         stage('Checkout Application Repo') {
             steps {
-                git branch: 'dev',
-                    url: 'https://github.com/flutterdeveloper2025-tech/my-app'
+                dir('app') {   // <-- separate folder for application
+                    git branch: 'dev',
+                        url: 'https://github.com/flutterdeveloper2025-tech/my-app'
+                }
             }
         }
 
         stage('Checkout Manifests Repo') {
             steps {
-                git branch: 'dev',
-                    url: 'https://github.com/flutterdeveloper2025-tech/my-app-manifests',
-                    changelog: false
+                dir('manifests') {  // <-- separate folder for manifests
+                    git branch: 'dev',
+                        url: 'https://github.com/flutterdeveloper2025-tech/my-app-manifests',
+                        changelog: false
+                }
             }
         }
 
@@ -41,10 +45,12 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh """
-                docker build -t $FULL_IMAGE .
-                docker tag $FULL_IMAGE $LATEST_IMAGE
-                """
+                dir('app') {   // <-- point Docker build context to app folder
+                    sh """
+                    docker build -t $FULL_IMAGE .
+                    docker tag $FULL_IMAGE $LATEST_IMAGE
+                    """
+                }
             }
         }
 
@@ -63,20 +69,22 @@ pipeline {
 
         stage('Update Deployment YAML') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'github_creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                    sh """
-                    # Update image tag in dev deployment YAML
-                    sed -i 's|image:.*|image: $FULL_IMAGE|' manifests/dev/dev-deployment.yaml
+                dir('manifests') {
+                    withCredentials([usernamePassword(credentialsId: 'github_creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                        sh """
+                        # Update image in dev deployment YAML
+                        sed -i 's|image:.*|image: $FULL_IMAGE|' dev/dev-deployment.yaml
 
-                    # Git config
-                    git config user.email "jenkins@example.com"
-                    git config user.name "Jenkins CI"
+                        # Git config
+                        git config user.email "jenkins@example.com"
+                        git config user.name "Jenkins CI"
 
-                    # Commit and push back to manifests repo
-                    git add dev/deployment.yaml
-                    git commit -m "Update DEV image tag to $FULL_IMAGE"
-                    git push https://\$USER:\$PASS@github.com/flutterdeveloper2025-tech/my-app-manifests dev
-                    """
+                        # Commit and push changes
+                        git add dev/dev-deployment.yaml
+                        git commit -m "Update DEV image tag to $FULL_IMAGE" || echo "No changes to commit"
+                        git push https://\$USER:\$PASS@github.com/flutterdeveloper2025-tech/my-app-manifests dev
+                        """
+                    }
                 }
             }
         }
