@@ -25,7 +25,7 @@ pipeline {
         stage('Checkout Manifests Repo') {
             steps {
                 dir('manifests') {
-                    git branch: 'prod',
+                    git branch: 'main',
                         url: 'https://github.com/flutterdeveloper2025-tech/my-app-manifests',
                         changelog: false
                 }
@@ -92,7 +92,7 @@ pipeline {
                         if ! git diff --quiet prod/prod-deployment.yaml; then
                             git add prod/prod-deployment.yaml
                             git commit -m "[ci skip] Update PROD image tag to $FULL_IMAGE"
-                            git push origin prod
+                            git push origin main
                         else
                             echo "✅ No changes in deployment YAML, skipping push"
                         fi
