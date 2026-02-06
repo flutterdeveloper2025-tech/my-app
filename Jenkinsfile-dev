@@ -56,6 +56,24 @@ pipeline {
             }
         }
 
+        stage('Deploy to Kubernetes') {
+            steps {
+                dir('app') {
+                    sh """
+                    # Update deployment YAML image
+                    sed -i 's|image:.*|image: $FULL_IMAGE|' dev-deployment.yaml
+
+                    # Apply Deployment & Service
+                    kubectl apply -f dev-deployment.yaml -n $NAMESPACE
+                    kubectl apply -f dev-service.yaml -n $NAMESPACE
+
+                    # Restart deployment to pick up new image
+                    kubectl rollout restart deployment mywebsite -n $NAMESPACE
+                    """
+                }
+            }
+        }
+
         stage('Smoke Test') {
             steps {
                 withEnv(["KUBECONFIG=$HOME/.kube/config"]) {
