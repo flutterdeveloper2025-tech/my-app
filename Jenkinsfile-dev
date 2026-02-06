@@ -2,19 +2,19 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_HUB   = "anas025"                  // Docker Hub username
-        IMAGE_NAME   = "for-docker-app"           // Docker Hub repo name
-        IMAGE_TAG    = "dev-${BUILD_NUMBER}"      // Version tag (auto from Jenkins)
+        DOCKER_HUB   = "anas025"
+        IMAGE_NAME   = "for-docker-app"
+        IMAGE_TAG    = "dev-${BUILD_NUMBER}"
         FULL_IMAGE   = "${DOCKER_HUB}/${IMAGE_NAME}:${IMAGE_TAG}"
         LATEST_IMAGE = "${DOCKER_HUB}/${IMAGE_NAME}:dev-latest"
-        NAMESPACE    = "dev"                      // Kubernetes namespace
+        NAMESPACE    = "dev"
     }
 
     stages {
 
         stage('Checkout Application Repo') {
             steps {
-                dir('app') {   // <-- separate folder for application
+                dir('app') {
                     git branch: 'dev',
                         url: 'https://github.com/flutterdeveloper2025-tech/my-app'
                 }
@@ -23,7 +23,7 @@ pipeline {
 
         stage('Checkout Manifests Repo') {
             steps {
-                dir('manifests') {  // <-- separate folder for manifests
+                dir('manifests') {
                     git branch: 'dev',
                         url: 'https://github.com/flutterdeveloper2025-tech/my-app-manifests',
                         changelog: false
@@ -45,7 +45,7 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                dir('app') {   // <-- point Docker build context to app folder
+                dir('app') {
                     sh """
                     docker build -t $FULL_IMAGE .
                     docker tag $FULL_IMAGE $LATEST_IMAGE
@@ -56,8 +56,7 @@ pipeline {
 
         stage('Docker Login & Push') {
             steps {
-                withCredentials([usernamePassword(credentialsId: 'docker_registry_dev',
-                    usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                withCredentials([usernamePassword(credentialsId: 'docker_registry_dev', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
                     sh """
                     echo \$PASS | docker login -u \$USER --password-stdin
                     docker push $FULL_IMAGE
@@ -67,32 +66,31 @@ pipeline {
             }
         }
 
-        stage('Update Deployment YAML') {
-    steps {
-        dir('manifests') {
-            withCredentials([usernamePassword(credentialsId: 'github_creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                sh """
-                # Update image in dev deployment YAML
-                sed -i 's|image:.*|image: $FULL_IMAGE|' dev/dev-deployment.yaml
+        stage('Update Deployment YAML & Push') {
+            steps {
+                dir('manifests') {
+                    withCredentials([usernamePassword(credentialsId: 'github_creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                        sh """
+                        # Update image in DEV deployment YAML
+                        sed -i 's|image:.*|image: $FULL_IMAGE|' dev/dev-deployment.yaml
 
-                # Git config
-                git config user.email "jenkins@example.com"
-                git config user.name "Jenkins CI"
+                        # Git config
+                        git config user.email "jenkins@example.com"
+                        git config user.name "Jenkins CI"
 
-                # Setup Git credential helper
-                git config credential.helper store
-                echo "https://\$USER:\$PASS@github.com" > ~/.git-credentials
+                        # Setup Git credential helper
+                        git config credential.helper store
+                        echo "https://\$USER:\$PASS@github.com" > ~/.git-credentials
 
-                # Commit and push changes
-                git add dev/dev-deployment.yaml
-                git commit -m "Update DEV image tag to $FULL_IMAGE" || echo "No changes to commit"
-                git push origin dev
-                """
+                        # Commit and push changes
+                        git add dev/dev-deployment.yaml
+                        git commit -m "Update DEV image tag to $FULL_IMAGE" || echo "No changes to commit"
+                        git push origin dev
+                        """
+                    }
+                }
             }
         }
-    }
-}
-
 
         stage('ArgoCD Sync') {
             steps {
