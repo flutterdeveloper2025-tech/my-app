@@ -2,21 +2,33 @@ pipeline {
     agent any
 
     environment {
-        DOCKER_HUB    = "anas025"                   // Docker Hub username
-        IMAGE_NAME    = "for-docker-app"            // Docker Hub repo name
-        IMAGE_TAG     = "prod-${BUILD_NUMBER}"      // Version tag (auto from Jenkins)
+        DOCKER_HUB    = "anas025"
+        IMAGE_NAME    = "for-docker-app"
+        IMAGE_TAG     = "prod-${BUILD_NUMBER}"
         FULL_IMAGE    = "${DOCKER_HUB}/${IMAGE_NAME}:${IMAGE_TAG}"
         LATEST_IMAGE  = "${DOCKER_HUB}/${IMAGE_NAME}:prod-latest"
-        BACKUP        = "${DOCKER_HUB}/${IMAGE_NAME}:prod-last" // last working image
-        NAMESPACE     = "prod"                       // Kubernetes namespace
+        BACKUP        = "${DOCKER_HUB}/${IMAGE_NAME}:prod-last"
+        NAMESPACE     = "prod"
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Application Repo') {
             steps {
-                git branch: 'main',
-                    url: 'https://github.com/flutterdeveloper2025-tech/my-app'
+                dir('app') {
+                    git branch: 'main',
+                        url: 'https://github.com/flutterdeveloper2025-tech/my-app'
+                }
+            }
+        }
+
+        stage('Checkout Manifests Repo') {
+            steps {
+                dir('manifests') {
+                    git branch: 'prod',
+                        url: 'https://github.com/flutterdeveloper2025-tech/my-app-manifests',
+                        changelog: false
+                }
             }
         }
 
@@ -40,40 +52,64 @@ pipeline {
 
         stage('Build Docker Image') {
             steps {
-                sh """
-                docker build -t $FULL_IMAGE .
-                docker tag $FULL_IMAGE $LATEST_IMAGE
-                """
-            }
-        }
-
-        stage('Docker Login') {
-            steps {
-                withCredentials([usernamePassword(credentialsId: 'docker_registry_prod',
-                    usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                    sh "echo \$PASS | docker login -u \$USER --password-stdin"
+                dir('app') {
+                    sh """
+                    docker build -t $FULL_IMAGE .
+                    docker tag $FULL_IMAGE $LATEST_IMAGE
+                    """
                 }
             }
         }
 
-        stage('Push Image to Docker Hub') {
+        stage('Docker Login & Push') {
             steps {
-                sh """
-                docker push $FULL_IMAGE
-                docker push $LATEST_IMAGE
-                """
+                withCredentials([usernamePassword(credentialsId: 'docker_registry_prod', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                    sh """
+                    echo \$PASS | docker login -u \$USER --password-stdin
+                    docker push $FULL_IMAGE
+                    docker push $LATEST_IMAGE
+                    """
+                }
+            }
+        }
+
+        stage('Update Deployment YAML & Push') {
+            steps {
+                dir('manifests') {
+                    withCredentials([string(credentialsId: 'github_pat', variable: 'GITHUB_PAT')]) {
+                        sh """
+                        # Update prod deployment YAML image
+                        sed -i 's|image:.*|image: $FULL_IMAGE|' prod/prod-deployment.yaml
+
+                        # Git config
+                        git config user.email "jenkins@example.com"
+                        git config user.name "Jenkins CI"
+
+                        # Set remote URL with PAT
+                        git remote set-url origin https://\$GITHUB_PAT@github.com/flutterdeveloper2025-tech/my-app-manifests.git
+
+                        # Commit only if changes exist
+                        if ! git diff --quiet prod/prod-deployment.yaml; then
+                            git add prod/prod-deployment.yaml
+                            git commit -m "[ci skip] Update PROD image tag to $FULL_IMAGE"
+                            git push origin prod
+                        else
+                            echo "✅ No changes in deployment YAML, skipping push"
+                        fi
+                        """
+                    }
+                }
             }
         }
 
         stage('Deploy to Kubernetes PROD') {
             steps {
                 withEnv(["KUBECONFIG=$HOME/.kube/config"]) {
-                    // Update prod deployment file with new image
-                    sh "sed -i 's|image:.*|image: $FULL_IMAGE|' k8s/prod-deployment.yaml"
-
-                    // Apply deployment and service
-                    sh "kubectl apply -f k8s/prod-deployment.yaml -n $NAMESPACE"
-                    sh "kubectl apply -f k8s/prod-service.yaml -n $NAMESPACE"
+                    sh """
+                    kubectl apply -f manifests/prod/prod-deployment.yaml -n $NAMESPACE
+                    kubectl apply -f manifests/prod/prod-service.yaml -n $NAMESPACE
+                    kubectl rollout restart deployment mywebsite -n $NAMESPACE
+                    """
                 }
             }
         }
@@ -81,41 +117,15 @@ pipeline {
         stage('Smoke Test') {
             steps {
                 withEnv(["KUBECONFIG=$HOME/.kube/config"]) {
-                    script {
-                        def retries = 12     // retry 12 times
-                        def wait = 10        // wait 10 seconds between retries
-                        def externalIP = ""
-                        for (int i = 0; i < retries; i++) {
-                            externalIP = sh(
-                                script: "kubectl get svc mywebsite-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}'",
-                                returnStdout: true
-                            ).trim()
-                            if (externalIP) {
-                                echo "LoadBalancer IP found: ${externalIP}"
-                                break
-                            }
-                            echo "Waiting for LoadBalancer IP... retry ${i+1}/${retries}"
-                            sleep(wait)
-                        }
-
-                        if (!externalIP) {
-                            echo "⚠️ LoadBalancer IP not assigned, rolling back to last working image"
-                            sh "kubectl set image deployment/mywebsite mywebsite=$BACKUP -n $NAMESPACE"
-                            error("❌ Deployment failed, rolled back")
-                        }
-
-                        def status = sh(
-                            script: "curl -o /dev/null -s -w '%{http_code}' http://$externalIP",
-                            returnStdout: true
-                        ).trim()
-                        if (status != "200") {
-                            echo "⚠️ App not reachable at $externalIP, rolling back"
-                            sh "kubectl set image deployment/mywebsite mywebsite=$BACKUP -n $NAMESPACE"
-                            error("❌ Deployment failed, rolled back")
-                        }
-
-                        echo "✅ PROD App running successfully at $externalIP"
-                    }
+                    sh """
+                    EXTERNAL_IP=\$(kubectl get svc mywebsite-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+                    STATUS=\$(curl -o /dev/null -s -w "%{http_code}" http://\$EXTERNAL_IP)
+                    if [ "\$STATUS" != "200" ]; then
+                        echo "❌ PROD App not reachable at \$EXTERNAL_IP"
+                        exit 1
+                    fi
+                    echo "✅ PROD App running successfully at \$EXTERNAL_IP"
+                    """
                 }
             }
         }
