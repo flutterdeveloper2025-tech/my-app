@@ -7,15 +7,23 @@ pipeline {
         IMAGE_TAG    = "dev-${BUILD_NUMBER}"      // Version tag (auto from Jenkins)
         FULL_IMAGE   = "${DOCKER_HUB}/${IMAGE_NAME}:${IMAGE_TAG}"
         LATEST_IMAGE = "${DOCKER_HUB}/${IMAGE_NAME}:dev-latest"
-        NAMESPACE    = "dev"                       // Kubernetes namespace
+        NAMESPACE    = "dev"                      // Kubernetes namespace
     }
 
     stages {
 
-        stage('Checkout') {
+        stage('Checkout Application Repo') {
             steps {
                 git branch: 'dev',
                     url: 'https://github.com/flutterdeveloper2025-tech/my-app'
+            }
+        }
+
+        stage('Checkout Manifests Repo') {
+            steps {
+                git branch: 'dev',
+                    url: 'https://github.com/flutterdeveloper2025-tech/my-app-manifests',
+                    changelog: false
             }
         }
 
@@ -40,33 +48,45 @@ pipeline {
             }
         }
 
-        stage('Docker Login') {
+        stage('Docker Login & Push') {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker_registry_dev',
                     usernameVariable: 'USER', passwordVariable: 'PASS')]) {
-                    sh "echo \$PASS | docker login -u \$USER --password-stdin"
+                    sh """
+                    echo \$PASS | docker login -u \$USER --password-stdin
+                    docker push $FULL_IMAGE
+                    docker push $LATEST_IMAGE
+                    """
                 }
             }
         }
 
-        stage('Push Image to Docker Hub') {
+        stage('Update Deployment YAML') {
             steps {
-                sh """
-                docker push $FULL_IMAGE
-                docker push $LATEST_IMAGE
-                """
+                withCredentials([usernamePassword(credentialsId: 'github_creds', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
+                    sh """
+                    # Update image tag in dev deployment YAML
+                    sed -i 's|image:.*|image: $FULL_IMAGE|' dev/deployment.yaml
+
+                    # Git config
+                    git config user.email "jenkins@example.com"
+                    git config user.name "Jenkins CI"
+
+                    # Commit and push back to manifests repo
+                    git add dev/deployment.yaml
+                    git commit -m "Update DEV image tag to $FULL_IMAGE"
+                    git push https://\$USER:\$PASS@github.com/flutterdeveloper2025-tech/my-app-manifests dev
+                    """
+                }
             }
         }
 
-        stage('Deploy to Kubernetes DEV') {
+        stage('ArgoCD Sync') {
             steps {
                 withEnv(["KUBECONFIG=$HOME/.kube/config"]) {
-                    // Update deployment file with new image
-                    sh "sed -i 's|image:.*|image: $FULL_IMAGE|' k8s/dev-deployment.yaml"
-
-                    // Apply deployment and service
-                    sh "kubectl apply -f k8s/dev-deployment.yaml -n $NAMESPACE"
-                    sh "kubectl apply -f k8s/dev-service.yaml -n $NAMESPACE"
+                    sh """
+                    argocd app sync myapp-dev || echo "ArgoCD sync failed, check manually"
+                    """
                 }
             }
         }
