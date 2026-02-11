@@ -34,23 +34,15 @@ pipeline {
         }
 
         stage('SonarQube Scan') {
-            steps {
-                dir('app') {
-                    withSonarQubeEnv('MySonarQube') {   // Jenkins SonarQube server ID
-                        withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_TOKEN')]) {
-                            sh """
-                                export PATH=\$PATH:$SONAR_PATH
-                                sonar-scanner \
-                                    -Dsonar.projectKey=my-app-${BRANCH_NAME} \
-                                    -Dsonar.sources=. \
-                                    -Dsonar.host.url=$SONAR_HOST \
-                                    -Dsonar.login=$SONAR_TOKEN
-                            """
-                        }
-                    }
-                }
+    steps {
+        dir('app') {
+            // Jenkins SonarQube plugin use karna
+            withSonarQubeEnv('MySonarQube') { // ye naam aapne Jenkins me set kiya
+                sh "sonar-scanner -Dsonar.projectKey=my-app-${BRANCH_NAME} -Dsonar.sources=."
             }
         }
+    }
+}
 
         stage('Quality Gate') {
             steps {
