@@ -2,13 +2,14 @@ pipeline {
     agent any
 
     environment {
-        BRANCH_NAME  = "dev"  
+        BRANCH_NAME  = "dev"  // manually set for dev branch
         DOCKER_HUB   = "anas025"
         IMAGE_NAME   = "for-docker-app"
         IMAGE_TAG    = "${BRANCH_NAME}-${BUILD_NUMBER}"  
         FULL_IMAGE   = "${DOCKER_HUB}/${IMAGE_NAME}:${IMAGE_TAG}"
         LATEST_IMAGE = "${DOCKER_HUB}/${IMAGE_NAME}:${BRANCH_NAME}-latest"
         NAMESPACE    = "${BRANCH_NAME}"  
+        SONAR_HOST   = "http://104.208.65.31:9001"
     }
 
     stages {
@@ -31,8 +32,24 @@ pipeline {
             }
         }
 
-        // ✅ Jenkins Plugin SonarQube Scan
-        stage('SonarQube Scan') { steps { dir('app') { withSonarQubeEnv('MySonarQube') { // <-- Use your Jenkins SonarQube server ID withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_AUTH_TOKEN')]) { sh """ docker run --rm \ -v "\$PWD":/usr/src \ -v "\$HOME/.sonar/cache":/root/.sonar/cache \ sonarsource/sonar-scanner-cli \ -Dsonar.projectKey=my-app-${BRANCH_NAME} \ -Dsonar.sources=. \ -Dsonar.host.url=$SONAR_HOST \ -Dsonar.login=\$SONAR_AUTH_TOKEN """ } } } } }
+        // ✅ Use Jenkins Sonar Scanner plugin instead of Docker
+        stage('SonarQube Scan') {
+            steps {
+                dir('app') {
+                    withSonarQubeEnv('MySonarQube') {   // Jenkins SonarQube server ID
+                        withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_TOKEN')]) {
+                            sh """
+                                sonar-scanner \
+                                    -Dsonar.projectKey=my-app-${BRANCH_NAME} \
+                                    -Dsonar.sources=. \
+                                    -Dsonar.host.url=$SONAR_HOST \
+                                    -Dsonar.login=$SONAR_TOKEN
+                            """
+                        }
+                    }
+                }
+            }
+        }
 
         stage('Quality Gate') {
             steps {
@@ -46,9 +63,9 @@ pipeline {
             steps {
                 withCredentials([file(credentialsId: 'kubernetes_config', variable: 'KUBECONFIG_FILE')]) {
                     sh """
-                    mkdir -p \$HOME/.kube
-                    cp \$KUBECONFIG_FILE \$HOME/.kube/config
-                    chmod 600 \$HOME/.kube/config
+                        mkdir -p \$HOME/.kube
+                        cp \$KUBECONFIG_FILE \$HOME/.kube/config
+                        chmod 600 \$HOME/.kube/config
                     """
                 }
             }
@@ -58,8 +75,8 @@ pipeline {
             steps {
                 dir('app') {
                     sh """
-                    docker build -t $FULL_IMAGE .
-                    docker tag $FULL_IMAGE $LATEST_IMAGE
+                        docker build -t $FULL_IMAGE .
+                        docker tag $FULL_IMAGE $LATEST_IMAGE
                     """
                 }
             }
@@ -69,9 +86,9 @@ pipeline {
             steps {
                 withCredentials([usernamePassword(credentialsId: 'docker_registry_dev', usernameVariable: 'USER', passwordVariable: 'PASS')]) {
                     sh """
-                    echo \$PASS | docker login -u \$USER --password-stdin
-                    docker push $FULL_IMAGE
-                    docker push $LATEST_IMAGE
+                        echo \$PASS | docker login -u \$USER --password-stdin
+                        docker push $FULL_IMAGE
+                        docker push $LATEST_IMAGE
                     """
                 }
             }
@@ -82,17 +99,19 @@ pipeline {
                 dir('manifests') {
                     withCredentials([string(credentialsId: 'github_pat', variable: 'GITHUB_PAT')]) {
                         sh """
-                        sed -i 's|image:.*|image: $FULL_IMAGE|' dev/dev-deployment.yaml
-                        git config user.email "jenkins@example.com"
-                        git config user.name "Jenkins CI"
-                        git remote set-url origin https://\$GITHUB_PAT@github.com/flutterdeveloper2025-tech/my-app-manifests.git
-                        if ! git diff --quiet dev/dev-deployment.yaml; then
-                            git add dev/dev-deployment.yaml
-                            git commit -m "[ci skip] Update DEV image to $FULL_IMAGE"
-                            git push origin dev
-                        else
-                            echo "✅ No changes in deployment YAML, skipping push"
-                        fi
+                            sed -i 's|image:.*|image: $FULL_IMAGE|' dev/dev-deployment.yaml
+
+                            git config user.email "jenkins@example.com"
+                            git config user.name "Jenkins CI"
+
+                            git remote set-url origin https://\$GITHUB_PAT@github.com/flutterdeveloper2025-tech/my-app-manifests.git
+                            if ! git diff --quiet dev/dev-deployment.yaml; then
+                                git add dev/dev-deployment.yaml
+                                git commit -m "[ci skip] Update DEV image to $FULL_IMAGE"
+                                git push origin dev
+                            else
+                                echo "✅ No changes in deployment YAML, skipping push"
+                            fi
                         """
                     }
                 }
@@ -103,9 +122,9 @@ pipeline {
             steps {
                 dir('manifests') {
                     sh """
-                    kubectl apply -f dev/dev-deployment.yaml -n $NAMESPACE
-                    kubectl apply -f dev/dev-service.yaml -n $NAMESPACE
-                    kubectl rollout restart deployment mywebsite -n $NAMESPACE
+                        kubectl apply -f dev/dev-deployment.yaml -n $NAMESPACE
+                        kubectl apply -f dev/dev-service.yaml -n $NAMESPACE
+                        kubectl rollout restart deployment mywebsite -n $NAMESPACE
                     """
                 }
             }
@@ -115,13 +134,13 @@ pipeline {
             steps {
                 withEnv(["KUBECONFIG=$HOME/.kube/config"]) {
                     sh """
-                    EXTERNAL_IP=\$(kubectl get svc mywebsite-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
-                    STATUS=\$(curl -o /dev/null -s -w "%{http_code}" http://\$EXTERNAL_IP)
-                    if [ "\$STATUS" != "200" ]; then
-                        echo "❌ ${BRANCH_NAME} App not reachable at \$EXTERNAL_IP"
-                        exit 1
-                    fi
-                    echo "✅ ${BRANCH_NAME} App running successfully at \$EXTERNAL_IP"
+                        EXTERNAL_IP=\$(kubectl get svc mywebsite-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
+                        STATUS=\$(curl -o /dev/null -s -w "%{http_code}" http://\$EXTERNAL_IP)
+                        if [ "\$STATUS" != "200" ]; then
+                            echo "❌ ${BRANCH_NAME} App not reachable at \$EXTERNAL_IP"
+                            exit 1
+                        fi
+                        echo "✅ ${BRANCH_NAME} App running successfully at \$EXTERNAL_IP"
                     """
                 }
             }
