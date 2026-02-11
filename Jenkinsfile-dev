@@ -37,18 +37,14 @@ pipeline {
     steps {
         dir('app') {
             withSonarQubeEnv('MySonarQube') {
-                withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_AUTH_TOKEN')]) {
-                    sh '''
-                    docker run --rm \
-                        -v "$(pwd)":/usr/src \
-                        -v "$HOME/.sonar/cache":/root/.sonar/cache \
-                        sonarsource/sonar-scanner-cli \
+                withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_TOKEN')]) {
+                    sh """
+                        sonar-scanner \
                         -Dsonar.projectKey=my-app-${BRANCH_NAME} \
                         -Dsonar.sources=. \
                         -Dsonar.host.url=$SONAR_HOST \
-                        -Dsonar.login=$SONAR_AUTH_TOKEN \
-                        -Dsonar.java.binaries=target/classes
-                    '''
+                        -Dsonar.login=$SONAR_TOKEN
+                    """
                 }
             }
         }
