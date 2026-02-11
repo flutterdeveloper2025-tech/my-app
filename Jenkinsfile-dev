@@ -35,8 +35,8 @@ pipeline {
         stage('SonarQube Scan') {
     steps {
         withSonarQubeEnv('MySonarQube') {
-            // Running SonarScanner inside the SonarQube container
-            sh 'docker exec sonarqube /opt/sonarqube/sonar-scanner/bin/sonar-scanner -Dsonar.projectKey=my-app-dev -Dsonar.sources=.'
+            // Jenkins ne jo sonar-scanner tool add kiya, usko use karna
+            sh "${tool 'SonarScanner'} -Dsonar.projectKey=my-app-dev -Dsonar.sources=."
         }
     }
 }
