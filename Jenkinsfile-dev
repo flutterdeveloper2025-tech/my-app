@@ -2,13 +2,14 @@ pipeline {
     agent any
 
     environment {
-        BRANCH_NAME  = "dev"  
+        BRANCH_NAME  = "dev"  // manually set for dev branch
         DOCKER_HUB   = "anas025"
         IMAGE_NAME   = "for-docker-app"
         IMAGE_TAG    = "${BRANCH_NAME}-${BUILD_NUMBER}"  
         FULL_IMAGE   = "${DOCKER_HUB}/${IMAGE_NAME}:${IMAGE_TAG}"
         LATEST_IMAGE = "${DOCKER_HUB}/${IMAGE_NAME}:${BRANCH_NAME}-latest"
         NAMESPACE    = "${BRANCH_NAME}"  
+        SONAR_HOST   = "http://104.208.65.31:9001"
     }
 
     stages {
@@ -31,12 +32,23 @@ pipeline {
             }
         }
 
-        // ✅ Jenkins Plugin SonarQube Scan
+        // ✅ Updated SonarQube Scan
         stage('SonarQube Scan') {
             steps {
                 dir('app') {
-                    withSonarQubeEnv('MySonarQube') {   // <-- Jenkins me configured SonarQube server
-                        sh "sonar-scanner -Dsonar.projectKey=my-app-${BRANCH_NAME} -Dsonar.sources=."
+                    withSonarQubeEnv('MySonarQube') {   // <-- Use your Jenkins SonarQube server ID
+                        withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_AUTH_TOKEN')]) {
+                            sh """
+                            docker run --rm \
+                                -v "\$PWD":/usr/src \
+                                -v "\$HOME/.sonar/cache":/root/.sonar/cache \
+                                sonarsource/sonar-scanner-cli \
+                                -Dsonar.projectKey=my-app-${BRANCH_NAME} \
+                                -Dsonar.sources=. \
+                                -Dsonar.host.url=$SONAR_HOST \
+                                -Dsonar.login=\$SONAR_AUTH_TOKEN
+                            """
+                        }
                     }
                 }
             }
@@ -91,8 +103,10 @@ pipeline {
                     withCredentials([string(credentialsId: 'github_pat', variable: 'GITHUB_PAT')]) {
                         sh """
                         sed -i 's|image:.*|image: $FULL_IMAGE|' dev/dev-deployment.yaml
+
                         git config user.email "jenkins@example.com"
                         git config user.name "Jenkins CI"
+
                         git remote set-url origin https://\$GITHUB_PAT@github.com/flutterdeveloper2025-tech/my-app-manifests.git
                         if ! git diff --quiet dev/dev-deployment.yaml; then
                             git add dev/dev-deployment.yaml
