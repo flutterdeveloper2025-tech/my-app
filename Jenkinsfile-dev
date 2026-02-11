@@ -35,9 +35,10 @@ pipeline {
         stage('SonarQube Scan') {
     steps {
         withSonarQubeEnv('MySonarQube') {
-            // 'MySonarScanner' jo Jenkins Tools me configured hai
-            sh "${tool 'MySonarScanner'}/bin/sonar-scanner -Dsonar.projectKey=my-app-dev -Dsonar.sources=."
-        }
+    sh "${tool 'MySonarScanner'}/bin/sonar-scanner \
+        -Dsonar.projectKey=my-app-dev \
+        -Dsonar.sources=."
+}
     }
 }
 
