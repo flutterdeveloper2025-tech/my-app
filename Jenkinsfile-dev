@@ -34,23 +34,25 @@ pipeline {
 
         // ✅ Updated SonarQube Scan
         stage('SonarQube Scan') {
-    steps {
-        dir('app') {
-            withSonarQubeEnv('MySonarQube') {
-                withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_TOKEN')]) {
-                    sh """
-                        sonar-scanner \
-                        -Dsonar.projectKey=my-app-${BRANCH_NAME} \
-                        -Dsonar.sources=. \
-                        -Dsonar.host.url=$SONAR_HOST \
-                        -Dsonar.login=$SONAR_TOKEN
-                    """
+            steps {
+                dir('app') {
+                    withSonarQubeEnv('MySonarQube') {   // <-- Use your Jenkins SonarQube server ID
+                        withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_AUTH_TOKEN')]) {
+                            sh """
+                            docker run --rm \
+                                -v "\$PWD":/usr/src \
+                                -v "\$HOME/.sonar/cache":/root/.sonar/cache \
+                                sonarsource/sonar-scanner-cli \
+                                -Dsonar.projectKey=my-app-${BRANCH_NAME} \
+                                -Dsonar.sources=. \
+                                -Dsonar.host.url=$SONAR_HOST \
+                                -Dsonar.login=\$SONAR_AUTH_TOKEN
+                            """
+                        }
+                    }
                 }
             }
         }
-    }
-}
-
 
         stage('Quality Gate') {
             steps {
