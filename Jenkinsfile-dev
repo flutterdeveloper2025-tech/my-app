@@ -30,6 +30,31 @@ pipeline {
             }
         }
 
+        stage('SonarQube Scan') {
+            steps {
+                withSonarQubeEnv('SonarQube') { // Name of server configured in Jenkins
+                    dir('app') {
+                        sh """
+                        # Node.js / JS project
+                        sonar-scanner \
+                          -Dsonar.projectKey=my-app-dev \
+                          -Dsonar.sources=. \
+                          -Dsonar.host.url=$SONAR_HOST_URL \
+                          -Dsonar.login=$SONAR_AUTH_TOKEN
+                        """
+                    }
+                }
+            }
+        }
+
+        stage('Quality Gate') {
+            steps {
+                timeout(time: 5, unit: 'MINUTES') {
+                    waitForQualityGate abortPipeline: true
+                }
+            }
+        }
+
         stage('Setup Kubeconfig') {
             steps {
                 withCredentials([file(credentialsId: 'kubernetes_config', variable: 'KUBECONFIG_FILE')]) {
