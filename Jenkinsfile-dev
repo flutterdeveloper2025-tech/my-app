@@ -2,15 +2,13 @@ pipeline {
     agent any
 
     environment {
-        BRANCH_NAME  = "dev"  // manually set for dev branch
+        BRANCH_NAME  = "dev"  
         DOCKER_HUB   = "anas025"
         IMAGE_NAME   = "for-docker-app"
         IMAGE_TAG    = "${BRANCH_NAME}-${BUILD_NUMBER}"  
         FULL_IMAGE   = "${DOCKER_HUB}/${IMAGE_NAME}:${IMAGE_TAG}"
         LATEST_IMAGE = "${DOCKER_HUB}/${IMAGE_NAME}:${BRANCH_NAME}-latest"
         NAMESPACE    = "${BRANCH_NAME}"  
-        SONAR_HOST   = "http://104.208.65.31:9001"
-        SONAR_PATH   = "/opt/sonar-scanner-4.10.0.19069-linux/bin"
     }
 
     stages {
@@ -33,16 +31,22 @@ pipeline {
             }
         }
 
+        // ✅ Option 2: Jenkins SonarQube Plugin
         stage('SonarQube Scan') {
-    steps {
-        dir('app') {
-            // Jenkins SonarQube plugin use karna
-            withSonarQubeEnv('MySonarQube') { // ye naam aapne Jenkins me set kiya
-                sh "sonar-scanner -Dsonar.projectKey=my-app-${BRANCH_NAME} -Dsonar.sources=."
+            steps {
+                dir('app') {
+                    withSonarQubeEnv('MySonarQube') {  // Jenkins me configured SonarQube server
+                        // Jenkins ke installed scanner tool ka use
+                        sh """
+                            echo "Using SonarQube Scanner from Jenkins plugin"
+                            sonar-scanner \
+                                -Dsonar.projectKey=my-app-${BRANCH_NAME} \
+                                -Dsonar.sources=.
+                        """
+                    }
+                }
             }
         }
-    }
-}
 
         stage('Quality Gate') {
             steps {
