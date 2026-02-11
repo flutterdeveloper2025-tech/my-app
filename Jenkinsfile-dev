@@ -30,30 +30,27 @@ pipeline {
             }
         }
 
-        // ✅ SonarQube scan only for dev branch
+        // ✅ SonarQube scan only for dev branch, using Dockerized scanner
         stage('SonarQube Scan') {
-            when {
-                branch 'dev'
-            }
+            when { branch 'dev' }
             steps {
-                withSonarQubeEnv('SonarQube') {
-                    dir('app') {
-                        sh """
-                        sonar-scanner \
-                          -Dsonar.projectKey=my-app-dev \
-                          -Dsonar.sources=. \
-                          -Dsonar.host.url=$SONAR_HOST_URL \
-                          -Dsonar.login=$SONAR_AUTH_TOKEN
-                        """
-                    }
+                dir('app') {
+                    sh """
+                    docker run --rm \
+                        -v "\$PWD":/usr/src \
+                        -v "\$HOME/.sonar/cache":/root/.sonar/cache \
+                        sonarsource/sonar-scanner-cli \
+                        -Dsonar.projectKey=my-app-dev \
+                        -Dsonar.sources=. \
+                        -Dsonar.host.url=$SONAR_HOST_URL \
+                        -Dsonar.login=$SONAR_AUTH_TOKEN
+                    """
                 }
             }
         }
 
         stage('Quality Gate') {
-            when {
-                branch 'dev'
-            }
+            when { branch 'dev' }
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
                     waitForQualityGate abortPipeline: true
