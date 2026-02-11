@@ -35,11 +35,10 @@ pipeline {
         stage('SonarQube Scan') {
     steps {
         dir('app') {
+            // Jenkins plugin ka use karke environment set karo
             withSonarQubeEnv('MySonarQube') {
-                // Jenkins ke installed scanner tool ka use
-                withSonarQubeScanner('MySonarScanner') {
-                    sh "sonar-scanner -Dsonar.projectKey=my-app-${BRANCH_NAME} -Dsonar.sources=."
-                }
+                // Scanner ko tool path ke sath call karo
+                sh "${SONAR_PATH}/sonar-scanner -Dsonar.projectKey=my-app-${BRANCH_NAME} -Dsonar.sources=."
             }
         }
     }
