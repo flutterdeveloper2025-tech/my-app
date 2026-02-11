@@ -35,11 +35,12 @@ pipeline {
         stage('SonarQube Scan') {
     steps {
         withSonarQubeEnv('MySonarQube') {
-            // Jenkins ne jo sonar-scanner tool add kiya, usko use karna
-            sh "${tool 'MySonarScanner'} -Dsonar.projectKey=my-app-dev -Dsonar.sources=."
+            // 'MySonarScanner' jo Jenkins Tools me configured hai
+            sh "${tool 'MySonarScanner'}/bin/sonar-scanner -Dsonar.projectKey=my-app-dev -Dsonar.sources=."
         }
     }
 }
+
 
 
         stage('Quality Gate') {
