@@ -33,15 +33,14 @@ pipeline {
 
         // ✅ Option 2: Jenkins SonarQube Plugin
         stage('SonarQube Scan') {
-            steps {
-                dir('app') {
-                    withSonarQubeEnv('MySonarQube') {
-                        // Use SONAR_PATH
-                        sh "${SONAR_PATH}/sonar-scanner -Dsonar.projectKey=my-app-dev -Dsonar.sources=."
-                    }
-                }
+    steps {
+        dir('app') {
+            withSonarQubeEnv('MySonarQube') {
+                sh "${env.SONAR_PATH}/sonar-scanner -Dsonar.projectKey=my-app-dev -Dsonar.sources=."
             }
         }
+    }
+}
 
         stage('Quality Gate') {
             steps {
