@@ -33,20 +33,17 @@ pipeline {
 
         // ✅ Option 2: Jenkins SonarQube Plugin
         stage('SonarQube Scan') {
-            steps {
-                dir('app') {
-                    withSonarQubeEnv('MySonarQube') {  // Jenkins me configured SonarQube server
-                        // Jenkins ke installed scanner tool ka use
-                        sh """
-                            echo "Using SonarQube Scanner from Jenkins plugin"
-                            sonar-scanner \
-                                -Dsonar.projectKey=my-app-${BRANCH_NAME} \
-                                -Dsonar.sources=.
-                        """
-                    }
+    steps {
+        dir('app') {
+            withSonarQubeEnv('MySonarQube') {
+                // Jenkins ke installed scanner tool ka use
+                withSonarQubeScanner('MySonarScanner') {
+                    sh "sonar-scanner -Dsonar.projectKey=my-app-${BRANCH_NAME} -Dsonar.sources=."
                 }
             }
         }
+    }
+}
 
         stage('Quality Gate') {
             steps {
