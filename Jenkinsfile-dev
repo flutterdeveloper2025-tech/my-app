@@ -4,11 +4,11 @@ pipeline {
     environment {
         DOCKER_HUB   = "anas025"
         IMAGE_NAME   = "for-docker-app"
-        IMAGE_TAG    = "dev-${BUILD_NUMBER}"
+        IMAGE_TAG    = "${BRANCH_NAME}-${BUILD_NUMBER}"  // branch ke hisaab se tag
         FULL_IMAGE   = "${DOCKER_HUB}/${IMAGE_NAME}:${IMAGE_TAG}"
-        LATEST_IMAGE = "${DOCKER_HUB}/${IMAGE_NAME}:dev-latest"
-        NAMESPACE    = "dev"
-        SONAR_HOST   = "http://104.208.65.31:9001" // SonarQube server URL
+        LATEST_IMAGE = "${DOCKER_HUB}/${IMAGE_NAME}:${BRANCH_NAME}-latest"
+        NAMESPACE    = "${BRANCH_NAME}"  // namespace bhi branch ke hisaab se
+        SONAR_HOST   = "http://104.208.65.31:9001"
     }
 
     stages {
@@ -16,7 +16,7 @@ pipeline {
         stage('Checkout Application Repo') {
             steps {
                 dir('app') {
-                    git branch: 'dev',
+                    git branch: "${BRANCH_NAME}",
                         url: 'https://github.com/flutterdeveloper2025-tech/my-app'
                 }
             }
@@ -25,13 +25,13 @@ pipeline {
         stage('Checkout Manifests Repo') {
             steps {
                 dir('manifests') {
-                    git branch: 'dev',
+                    git branch: "${BRANCH_NAME}",
                         url: 'https://github.com/flutterdeveloper2025-tech/my-app-manifests'
                 }
             }
         }
 
-        // ✅ SonarQube scan only for dev branch, using Dockerized scanner
+        // ✅ SonarQube scan only for dev branch
         stage('SonarQube Scan') {
             when { 
                 expression { env.BRANCH_NAME == 'dev' }
@@ -44,7 +44,7 @@ pipeline {
                             -v "\$PWD":/usr/src \
                             -v "\$HOME/.sonar/cache":/root/.sonar/cache \
                             sonarsource/sonar-scanner-cli \
-                            -Dsonar.projectKey=my-app-dev \
+                            -Dsonar.projectKey=my-app-${BRANCH_NAME} \
                             -Dsonar.sources=. \
                             -Dsonar.host.url=$SONAR_HOST \
                             -Dsonar.login=\$SONAR_AUTH_TOKEN
@@ -105,16 +105,16 @@ pipeline {
                 dir('manifests') {
                     withCredentials([string(credentialsId: 'github_pat', variable: 'GITHUB_PAT')]) {
                         sh """
-                        sed -i 's|image:.*|image: $FULL_IMAGE|' dev/dev-deployment.yaml
+                        sed -i 's|image:.*|image: $FULL_IMAGE|' ${BRANCH_NAME}/${BRANCH_NAME}-deployment.yaml
 
                         git config user.email "jenkins@example.com"
                         git config user.name "Jenkins CI"
 
                         git remote set-url origin https://\$GITHUB_PAT@github.com/flutterdeveloper2025-tech/my-app-manifests.git
-                        if ! git diff --quiet dev/dev-deployment.yaml; then
-                            git add dev/dev-deployment.yaml
-                            git commit -m "[ci skip] Update DEV image to $FULL_IMAGE"
-                            git push origin dev
+                        if ! git diff --quiet ${BRANCH_NAME}/${BRANCH_NAME}-deployment.yaml; then
+                            git add ${BRANCH_NAME}/${BRANCH_NAME}-deployment.yaml
+                            git commit -m "[ci skip] Update ${BRANCH_NAME} image to $FULL_IMAGE"
+                            git push origin ${BRANCH_NAME}
                         else
                             echo "✅ No changes in deployment YAML, skipping push"
                         fi
@@ -128,8 +128,8 @@ pipeline {
             steps {
                 dir('manifests') {
                     sh """
-                    kubectl apply -f dev/dev-deployment.yaml -n $NAMESPACE
-                    kubectl apply -f dev/dev-service.yaml -n $NAMESPACE
+                    kubectl apply -f ${BRANCH_NAME}/${BRANCH_NAME}-deployment.yaml -n $NAMESPACE
+                    kubectl apply -f ${BRANCH_NAME}/${BRANCH_NAME}-service.yaml -n $NAMESPACE
                     kubectl rollout restart deployment mywebsite -n $NAMESPACE
                     """
                 }
@@ -143,10 +143,10 @@ pipeline {
                     EXTERNAL_IP=\$(kubectl get svc mywebsite-service -n $NAMESPACE -o jsonpath='{.status.loadBalancer.ingress[0].ip}')
                     STATUS=\$(curl -o /dev/null -s -w "%{http_code}" http://\$EXTERNAL_IP)
                     if [ "\$STATUS" != "200" ]; then
-                        echo "❌ DEV App not reachable at \$EXTERNAL_IP"
+                        echo "❌ ${BRANCH_NAME} App not reachable at \$EXTERNAL_IP"
                         exit 1
                     fi
-                    echo "✅ DEV App running successfully at \$EXTERNAL_IP"
+                    echo "✅ ${BRANCH_NAME} App running successfully at \$EXTERNAL_IP"
                     """
                 }
             }
@@ -154,7 +154,7 @@ pipeline {
     }
 
     post {
-        success { echo "🎉 DEV deployment to Kubernetes successful" }
-        failure { echo "❌ DEV deployment failed" }
+        success { echo "🎉 ${BRANCH_NAME} deployment to Kubernetes successful" }
+        failure { echo "❌ ${BRANCH_NAME} deployment failed" }
     }
 }
