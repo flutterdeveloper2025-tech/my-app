@@ -8,6 +8,7 @@ pipeline {
         FULL_IMAGE   = "${DOCKER_HUB}/${IMAGE_NAME}:${IMAGE_TAG}"
         LATEST_IMAGE = "${DOCKER_HUB}/${IMAGE_NAME}:dev-latest"
         NAMESPACE    = "dev"
+        SONAR_HOST   = "http://104.208.65.31:9001" // SonarQube server URL
     }
 
     stages {
@@ -33,27 +34,29 @@ pipeline {
         // ✅ SonarQube scan only for dev branch, using Dockerized scanner
         stage('SonarQube Scan') {
             when { 
-    expression { env.BRANCH_NAME == 'dev' }
+                expression { env.BRANCH_NAME == 'dev' }
             }
             steps {
                 dir('app') {
-                    sh """
-                    docker run --rm \
-                        -v "\$PWD":/usr/src \
-                        -v "\$HOME/.sonar/cache":/root/.sonar/cache \
-                        sonarsource/sonar-scanner-cli \
-                        -Dsonar.projectKey=my-app-dev \
-                        -Dsonar.sources=. \
-                        -Dsonar.host.url=$SONAR_HOST_URL \
-                        -Dsonar.login=$SONAR_AUTH_TOKEN
-                    """
+                    withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_AUTH_TOKEN')]) {
+                        sh """
+                        docker run --rm \
+                            -v "\$PWD":/usr/src \
+                            -v "\$HOME/.sonar/cache":/root/.sonar/cache \
+                            sonarsource/sonar-scanner-cli \
+                            -Dsonar.projectKey=my-app-dev \
+                            -Dsonar.sources=. \
+                            -Dsonar.host.url=$SONAR_HOST \
+                            -Dsonar.login=\$SONAR_AUTH_TOKEN
+                        """
+                    }
                 }
             }
         }
 
         stage('Quality Gate') {
             when { 
-    expression { env.BRANCH_NAME == 'dev' }
+                expression { env.BRANCH_NAME == 'dev' }
             }
             steps {
                 timeout(time: 5, unit: 'MINUTES') {
