@@ -111,39 +111,41 @@ pipeline {
         stage('Trivy Image Scan') {
     steps {
         script {
-            // Run Trivy scan
-            sh "trivy image --severity HIGH,CRITICAL -f json -o trivy-report.json $FULL_IMAGE || true"
+            // Run Trivy scan and save report
+            sh """
+                trivy image --severity HIGH,CRITICAL -f json -o trivy-report.json $FULL_IMAGE || true
+            """
 
-            // Read JSON inside a local scope
-            def reportJson = readFile('trivy-report.json')
-            def vulnerabilitiesFound = false
+            def report = readFile('trivy-report.json')
 
-            new groovy.json.JsonSlurper().parseText(reportJson).Results.each { target ->
-                if (target.Vulnerabilities && target.Vulnerabilities.size() > 0) {
-                    vulnerabilitiesFound = true
-                }
-            }
-
-            if (vulnerabilitiesFound) {
-                echo "⚠ Vulnerabilities found in Docker image $FULL_IMAGE"
-
-                // Send simple email
+            // Email settings
+            def sendEmail = { subjectText, bodyText ->
                 withCredentials([usernamePassword(credentialsId: 'gmail_prod_email_trivay', usernameVariable: 'EMAIL_USER', passwordVariable: 'EMAIL_PASS')]) {
                     emailext (
                         to: 'flutterdeveloper2025@gmail.com',
-                        subject: "⚠ Vulnerabilities detected in PROD image $FULL_IMAGE",
-                        body: "Trivy scan found HIGH/CRITICAL vulnerabilities in $FULL_IMAGE. Please review.",
+                        subject: subjectText,
+                        body: bodyText,
                         from: "${EMAIL_USER}",
                         replyTo: "${EMAIL_USER}",
                         mimeType: 'text/plain'
                     )
                 }
+            }
+
+            if (report.contains('"Vulnerabilities":[')) {
+                echo "⚠ Vulnerabilities found in Docker image $FULL_IMAGE"
+                sendEmail("⚠ Vulnerabilities detected in PROD image $FULL_IMAGE",
+                          "Trivy scan detected HIGH/CRITICAL vulnerabilities in Docker image $FULL_IMAGE.\nPlease review the report.")
             } else {
                 echo "✅ No critical/high vulnerabilities found in $FULL_IMAGE"
+                // Optional email if you want
+                sendEmail("✅ No vulnerabilities in PROD image $FULL_IMAGE",
+                          "Trivy scan completed. No HIGH/CRITICAL vulnerabilities found in Docker image $FULL_IMAGE.")
             }
         }
     }
 }
+
 
 
 
