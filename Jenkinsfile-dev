@@ -31,35 +31,33 @@ pipeline {
             }
         }
 
-        // ✅ Option 2: Jenkins SonarQube Plugin
         stage('SonarQube Scan') {
-    steps {
-        withSonarQubeEnv('MySonarQube') {  // Ye aapke Jenkins me configured SonarQube server ka name
-            withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_TOKEN')]) {
-                sh """
-                /var/lib/jenkins/tools/hudson.plugins.sonar.SonarRunnerInstallation/MySonarScanner/bin/sonar-scanner \
-                -Dsonar.projectKey=my-app-dev \
-                -Dsonar.sources=. \
-                -Dsonar.login=${SONAR_TOKEN}
-                """
-            }
-        }
-    }
-}
-
-stage('Quality Gate') {
-    steps {
-        script {
-            timeout(time: 1, unit: 'MINUTES') {   // Wait max 5 minutes
-                def qg = waitForQualityGate()      // Polls SonarQube for result
-                if (qg.status != 'OK') {
-                    error "Pipeline aborted due to quality gate failure: ${qg.status}"
+            steps {
+                withSonarQubeEnv('MySonarQube') {
+                    withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_TOKEN')]) {
+                        sh """
+                        /var/lib/jenkins/tools/hudson.plugins.sonar.SonarRunnerInstallation/MySonarScanner/bin/sonar-scanner \
+                        -Dsonar.projectKey=my-app-dev \
+                        -Dsonar.sources=. \
+                        -Dsonar.login=${SONAR_TOKEN}
+                        """
+                    }
                 }
             }
         }
-    }
-}
 
+        stage('Quality Gate') {
+            steps {
+                script {
+                    timeout(time: 1, unit: 'MINUTES') {
+                        def qg = waitForQualityGate()
+                        if (qg.status != 'OK') {
+                            error "Pipeline aborted due to quality gate failure: ${qg.status}"
+                        }
+                    }
+                }
+            }
+        }
 
         stage('Setup Kubeconfig') {
             steps {
@@ -81,6 +79,15 @@ stage('Quality Gate') {
                         docker tag $FULL_IMAGE $LATEST_IMAGE
                     """
                 }
+            }
+        }
+
+        // ✅ New Trivy Scan Stage
+        stage('Trivy Image Scan') {
+            steps {
+                sh """
+                    trivy image --severity HIGH,CRITICAL --exit-code 1 $FULL_IMAGE
+                """
             }
         }
 
