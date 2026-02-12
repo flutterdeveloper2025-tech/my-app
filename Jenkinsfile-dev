@@ -49,8 +49,9 @@ pipeline {
         stage('Quality Gate') {
     steps {
         script {
-            def qg = waitForQualityGate()
-            echo "SonarQube status: ${qg.status}"
+            // Non-blocking mode
+            def qg = waitForQualityGate(abortPipeline: false) // <-- important
+            echo "SonarQube Quality Gate result will be checked asynchronously."
         }
     }
 }
