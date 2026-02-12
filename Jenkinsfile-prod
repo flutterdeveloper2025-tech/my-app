@@ -62,7 +62,6 @@ pipeline {
                         def qg = waitForQualityGate()
                         
                         if (qg.status != 'OK') {
-                            // Quality Gate FAILED
                             mail to: 'flutterdeveloper2025@gmail.com',
                                  subject: "❌ Quality Gate FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                                  body: """
@@ -72,7 +71,6 @@ pipeline {
                                  """
                             error "Pipeline aborted due to Quality Gate failure: ${qg.status}"
                         } else {
-                            // Quality Gate PASSED
                             mail to: 'flutterdeveloper2025@gmail.com',
                                  subject: "✅ Quality Gate PASSED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                                  body: """
@@ -105,6 +103,33 @@ pipeline {
                         docker build -t $FULL_IMAGE .
                         docker tag $FULL_IMAGE $LATEST_IMAGE
                     """
+                }
+            }
+        }
+
+        // ✅ Trivy Scan with email alert for PROD
+        stage('Trivy Image Scan') {
+            steps {
+                script {
+                    sh """
+                        trivy image --severity HIGH,CRITICAL -f json -o trivy-report.json $FULL_IMAGE || true
+                    """
+                    def report = readFile('trivy-report.json')
+                    if (report.contains('"Vulnerabilities":[')) {
+                        echo "⚠ Vulnerabilities found in Docker image $FULL_IMAGE"
+                        
+                        // Send email alert
+                        mail to: 'flutterdeveloper2025@gmail.com',
+                             subject: "⚠ Vulnerabilities detected in PROD image $FULL_IMAGE",
+                             body: """
+                             Trivy scan detected vulnerabilities in Docker image $FULL_IMAGE.
+                             Please review the attached report.
+                             """,
+                             attachLog: true,
+                             attachmentsPattern: 'trivy-report.json'
+                    } else {
+                        echo "✅ No critical/high vulnerabilities found in $FULL_IMAGE"
+                    }
                 }
             }
         }
