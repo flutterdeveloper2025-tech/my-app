@@ -34,13 +34,13 @@ pipeline {
         stage('SonarQube Scan') {
     steps {
         withSonarQubeEnv('MySonarQube') {
-            withCredentials([string(credentialsId: 'sonarqube_token', variable: 'SONAR_TOKEN')]) {
-                sh '''
+            withCredentials([string(credentialsId: 'sonarqube_token', variable: 'sonarqube_token')]) {
+                sh """
                 /var/lib/jenkins/tools/hudson.plugins.sonar.SonarRunnerInstallation/MySonarScanner/bin/sonar-scanner \
                 -Dsonar.projectKey=my-app-dev \
                 -Dsonar.sources=. \
-                -Dsonar.token=$SONAR_TOKEN
-                '''
+                -Dsonar.login=${SONAR_TOKEN}
+                """
             }
         }
     }
@@ -58,6 +58,7 @@ stage('Quality Gate') {
         }
     }
 }
+
 
 
         stage('Setup Kubeconfig') {
