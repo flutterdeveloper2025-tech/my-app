@@ -135,7 +135,7 @@ pipeline {
                         if ! git diff --quiet prod/prod-deployment.yaml; then
                             git add prod/prod-deployment.yaml
                             git commit -m "[ci skip] Update PROD image to $FULL_IMAGE"
-                            git push origin ${BRANCH_NAME}
+                            git push origin ${BRANCH_NAME} --force
                         else
                             echo "✅ No changes in deployment YAML, skipping push"
                         fi
