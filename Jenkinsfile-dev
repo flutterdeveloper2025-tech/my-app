@@ -129,7 +129,7 @@ stage('Quality Gate') {
                             if ! git diff --quiet dev/dev-deployment.yaml; then
                                 git add dev/dev-deployment.yaml
                                 git commit -m "[ci skip] Update DEV image to $FULL_IMAGE"
-                                git push origin dev
+                                git push origin dev --force
                             else
                                 echo "✅ No changes in deployment YAML, skipping push"
                             fi
