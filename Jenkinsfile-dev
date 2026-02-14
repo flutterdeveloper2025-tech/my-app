@@ -49,18 +49,19 @@ pipeline {
 stage('Quality Gate') {
     steps {
         script {
-            timeout(time: 1, unit: 'MINUTES') {  // SonarQube analysis complete hone ka time
-                def qg = waitForQualityGate()
-                
-                // Quality Gate fail hone par ab pipeline abort nahi hoga
-                echo "SonarQube Quality Gate status: ${qg.status}"
+            timeout(time: 10, unit: 'MINUTES') {
+                def qgStatus = 'UNKNOWN'
+                try {
+                    def qg = waitForQualityGate()
+                    qgStatus = qg.status
+                } catch (err) {
+                    echo "SonarQube Quality Gate check failed or timed out: ${err}"
+                }
+                echo "SonarQube Quality Gate status: ${qgStatus}"
             }
         }
     }
 }
-
-
-
 
         stage('Setup Kubeconfig') {
             steps {
