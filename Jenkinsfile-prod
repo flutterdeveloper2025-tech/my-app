@@ -56,37 +56,33 @@ pipeline {
 
         // ✅ Quality Gate Check + Email
         stage('Quality Gate') {
-    steps {
-        script {
-            // Increase timeout to 3 minutes to avoid premature cancellation
-            timeout(time: 3, unit: 'MINUTES') {
-                def qg = waitForQualityGate()
-                
-                if (qg.status != 'OK') {
-                    // Send failure email
-                    mail to: 'flutterdeveloper2025@gmail.com',
-                         subject: "❌ Quality Gate FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                         body: """
-                         SonarQube Quality Gate failed for project ${env.JOB_NAME} (Build #${env.BUILD_NUMBER}).
-                         Status: ${qg.status}
-                         Check SonarQube dashboard: http://<your-sonarqube-server>/dashboard?id=my-app-dev
-                         """
-                    // Abort pipeline
-                    error "Pipeline aborted due to Quality Gate failure: ${qg.status}"
-                } else {
-                    // Send success email
-                    mail to: 'flutterdeveloper2025@gmail.com',
-                         subject: "✅ Quality Gate PASSED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                         body: """
-                         SonarQube Quality Gate passed for project ${env.JOB_NAME} (Build #${env.BUILD_NUMBER}).
-                         Status: ${qg.status}
-                         Check SonarQube dashboard: http://<your-sonarqube-server>/dashboard?id=my-app-dev
-                         """
+            steps {
+                script {
+                    timeout(time: 1, unit: 'MINUTES') {
+                        def qg = waitForQualityGate()
+                        
+                        if (qg.status != 'OK') {
+                            mail to: 'flutterdeveloper2025@gmail.com',
+                                 subject: "❌ Quality Gate FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                                 body: """
+                                 SonarQube Quality Gate failed for project ${env.JOB_NAME} (Build #${env.BUILD_NUMBER}).
+                                 Status: ${qg.status}
+                                 Check SonarQube dashboard: http://<your-sonarqube-server>/dashboard?id=my-app-prod
+                                 """
+                            error "Pipeline aborted due to Quality Gate failure: ${qg.status}"
+                        } else {
+                            mail to: 'flutterdeveloper2025@gmail.com',
+                                 subject: "✅ Quality Gate PASSED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                                 body: """
+                                 SonarQube Quality Gate passed for project ${env.JOB_NAME} (Build #${env.BUILD_NUMBER}).
+                                 Status: ${qg.status}
+                                 Check SonarQube dashboard: http://<your-sonarqube-server>/dashboard?id=my-app-prod
+                                 """
+                        }
+                    }
                 }
             }
         }
-    }
-}
 
 
         stage('Setup Kubeconfig') {
