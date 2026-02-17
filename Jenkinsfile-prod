@@ -55,45 +55,55 @@ pipeline {
         }
 
         // ✅ Quality Gate Check + Email
-        stage('Quality Gate') {
+stage('Quality Gate') {
     steps {
         script {
-            timeout(time: 2, unit: 'MINUTES') { // PROD me thoda zyada time de rahe hain
-                def qgStatus = 'UNKNOWN'
-                try {
+            def qgStatus = 'UNKNOWN'
+            try {
+                // PROD me timeout 5 minutes rakha gaya hai
+                timeout(time: 5, unit: 'MINUTES') {
                     def qg = waitForQualityGate()
                     qgStatus = qg.status
-
-                    if (qgStatus != 'OK') {
-                        mail to: 'flutterdeveloper2025@gmail.com',
-                             subject: "❌ PROD Quality Gate FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                             body: """
-                             SonarQube Quality Gate failed for PROD project ${env.JOB_NAME} (Build #${env.BUILD_NUMBER}).
-                             Status: ${qgStatus}
-                             Check SonarQube dashboard: http://104.208.65.31:9001/dashboard?id=my-app-prod
-                             """
-                        error "Pipeline aborted due to Quality Gate failure: ${qgStatus}"
-                    } else {
-                        mail to: 'flutterdeveloper2025@gmail.com',
-                             subject: "✅ PROD Quality Gate PASSED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                             body: """
-                             SonarQube Quality Gate passed for PROD project ${env.JOB_NAME} (Build #${env.BUILD_NUMBER}).
-                             Status: ${qgStatus}
-                             Check SonarQube dashboard: http://104.208.65.31:9001/dashboard?id=my-app-prod
-                             """
-                    }
-
-                } catch (err) {
-                    echo "❌ SonarQube Quality Gate check failed or timed out: ${err}"
-                    mail to: 'flutterdeveloper2025@gmail.com',
-                         subject: "❌ PROD Quality Gate CHECK FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
-                         body: "SonarQube Quality Gate check failed or timed out.\nError: ${err}"
-                    error "Pipeline aborted due to SonarQube check failure"
                 }
+
+                echo "SonarQube Quality Gate status: ${qgStatus}"
+
+                if (qgStatus == 'OK') {
+                    // ✅ Quality Gate passed
+                    mail to: 'flutterdeveloper2025@gmail.com',
+                         subject: "✅ PROD Quality Gate PASSED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                         body: """
+                         SonarQube Quality Gate passed for PROD project ${env.JOB_NAME} (Build #${env.BUILD_NUMBER}).
+                         Status: ${qgStatus}
+                         Check SonarQube dashboard: http://104.208.65.31:9001/dashboard?id=my-app-prod
+                         """
+                } else {
+                    // ❌ Quality Gate failed
+                    mail to: 'flutterdeveloper2025@gmail.com',
+                         subject: "❌ PROD Quality Gate FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                         body: """
+                         SonarQube Quality Gate failed for PROD project ${env.JOB_NAME} (Build #${env.BUILD_NUMBER}).
+                         Status: ${qgStatus}
+                         Check SonarQube dashboard: http://104.208.65.31:9001/dashboard?id=my-app-prod
+                         """
+                    error "Pipeline aborted due to Quality Gate failure: ${qgStatus}"
+                }
+
+            } catch (err) {
+                // ⚠ Timeout ya koi aur error
+                echo "❌ SonarQube Quality Gate check failed or timed out: ${err}"
+                mail to: 'flutterdeveloper2025@gmail.com',
+                     subject: "❌ PROD Quality Gate CHECK FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                     body: """
+                     SonarQube Quality Gate check failed or timed out for PROD project ${env.JOB_NAME} (Build #${env.BUILD_NUMBER}).
+                     Error: ${err}
+                     """
+                error "Pipeline aborted due to SonarQube check failure"
             }
         }
     }
 }
+
 
         stage('Setup Kubeconfig') {
             steps {
