@@ -115,23 +115,30 @@ stage('Quality Gate') {
             }
         }
 
-        stage('Update Deployment YAML & Push') {
+        stage('Update K8s Manifests & Push') {
             steps {
                 dir('manifests') {
                     withCredentials([string(credentialsId: 'github_pat', variable: 'GITHUB_PAT')]) {
                         sh """
+                            # Update Deployment image
                             sed -i 's|image:.*|image: $FULL_IMAGE|' dev/dev-deployment.yaml
+
+                            # Update namespace in Gateway, HTTPRoute, Certificate
+                            sed -i 's|namespace:.*|namespace: $NAMESPACE|' dev/traefik-gateway.yaml
+                            sed -i 's|namespace:.*|namespace: $NAMESPACE|' dev/mywebsite-httproute.yaml
+                            sed -i 's|namespace:.*|namespace: $NAMESPACE|' dev/mywebsite-cert.yaml
 
                             git config user.email "jenkins@example.com"
                             git config user.name "Jenkins CI"
-
                             git remote set-url origin https://\$GITHUB_PAT@github.com/flutterdeveloper2025-tech/my-app-manifests.git
-                            if ! git diff --quiet dev/dev-deployment.yaml; then
-                                git add dev/dev-deployment.yaml
-                                git commit -m "[ci skip] Update DEV image to $FULL_IMAGE"
+
+                            # Commit only if any changes
+                            if ! git diff --quiet; then
+                                git add dev/*.yaml
+                                git commit -m "[ci skip] Update DEV manifests for $FULL_IMAGE"
                                 git push origin dev --force
                             else
-                                echo "✅ No changes in deployment YAML, skipping push"
+                                echo "✅ No changes in manifests, skipping push"
                             fi
                         """
                     }
