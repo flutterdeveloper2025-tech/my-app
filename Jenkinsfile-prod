@@ -145,18 +145,6 @@ pipeline {
             }
         }
 
-        stage('Deploy to Kubernetes PROD') {
-            steps {
-                withEnv(["KUBECONFIG=$HOME/.kube/config"]) {
-                    sh """
-                        kubectl apply -f manifests/prod/prod-deployment.yaml -n $NAMESPACE
-                        kubectl apply -f manifests/prod/prod-service.yaml -n $NAMESPACE
-                        kubectl rollout restart deployment mywebsite -n $NAMESPACE
-                    """
-                }
-            }
-        }
-
         stage('Smoke Test') {
             steps {
                 withEnv(["KUBECONFIG=$HOME/.kube/config"]) {
