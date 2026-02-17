@@ -124,9 +124,9 @@ stage('Quality Gate') {
                             sed -i 's|image:.*|image: $FULL_IMAGE|' dev/dev-deployment.yaml
 
                             # Update namespace in Gateway, HTTPRoute, Certificate
-                            sed -i 's|namespace:.*|namespace: $NAMESPACE|' dev/traefik-gateway.yaml
-                            sed -i 's|namespace:.*|namespace: $NAMESPACE|' dev/mywebsite-httproute.yaml
-                            sed -i 's|namespace:.*|namespace: $NAMESPACE|' dev/mywebsite-cert.yaml
+                            sed -i 's|namespace:.*|namespace: $NAMESPACE|' dev/gateway.yaml
+                            sed -i 's|namespace:.*|namespace: $NAMESPACE|' dev/httproute.yaml
+                            sed -i 's|namespace:.*|namespace: $NAMESPACE|' dev/clusterissuer.yaml
 
                             git config user.email "jenkins@example.com"
                             git config user.name "Jenkins CI"
