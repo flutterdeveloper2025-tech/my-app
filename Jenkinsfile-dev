@@ -139,17 +139,6 @@ stage('Quality Gate') {
             }
         }
 
-        stage('Deploy to Kubernetes') {
-            steps {
-                dir('manifests') {
-                    sh """
-                        kubectl apply -f dev/dev-deployment.yaml -n $NAMESPACE
-                        kubectl apply -f dev/dev-service.yaml -n $NAMESPACE
-                        kubectl rollout restart deployment mywebsite -n $NAMESPACE
-                    """
-                }
-            }
-        }
 
         stage('Smoke Test') {
             steps {
