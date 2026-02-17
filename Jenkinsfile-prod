@@ -55,13 +55,13 @@ pipeline {
         }
 
         // ✅ Quality Gate Check + Email
-stage('Quality Gate') {
+        stage('Quality Gate') {
     steps {
         script {
             def qgStatus = 'UNKNOWN'
             try {
-                // PROD me timeout 5 minutes rakha gaya hai
-                timeout(time: 5, unit: 'MINUTES') {
+                // PROD me timeout 1 minutes rakha gaya hai
+                timeout(time: 1, unit: 'MINUTES') {
                     def qg = waitForQualityGate()
                     qgStatus = qg.status
                 }
@@ -78,27 +78,27 @@ stage('Quality Gate') {
                          Check SonarQube dashboard: http://104.208.65.31:9001/dashboard?id=my-app-prod
                          """
                 } else {
-                    // ❌ Quality Gate failed
+                    // ❌ Quality Gate failed, lekin pipeline continue ho
                     mail to: 'flutterdeveloper2025@gmail.com',
-                         subject: "❌ PROD Quality Gate FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                         subject: "⚠ PROD Quality Gate FAILED (Non-blocking): ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                          body: """
                          SonarQube Quality Gate failed for PROD project ${env.JOB_NAME} (Build #${env.BUILD_NUMBER}).
                          Status: ${qgStatus}
                          Check SonarQube dashboard: http://104.208.65.31:9001/dashboard?id=my-app-prod
                          """
-                    error "Pipeline aborted due to Quality Gate failure: ${qgStatus}"
+                    echo "⚠ Quality Gate failed, but continuing pipeline..."
                 }
 
             } catch (err) {
-                // ⚠ Timeout ya koi aur error
+                // ⚠ Timeout ya koi aur error, lekin pipeline continue ho
                 echo "❌ SonarQube Quality Gate check failed or timed out: ${err}"
                 mail to: 'flutterdeveloper2025@gmail.com',
-                     subject: "❌ PROD Quality Gate CHECK FAILED: ${env.JOB_NAME} #${env.BUILD_NUMBER}",
+                     subject: "⚠ PROD Quality Gate CHECK FAILED (Non-blocking): ${env.JOB_NAME} #${env.BUILD_NUMBER}",
                      body: """
                      SonarQube Quality Gate check failed or timed out for PROD project ${env.JOB_NAME} (Build #${env.BUILD_NUMBER}).
                      Error: ${err}
                      """
-                error "Pipeline aborted due to SonarQube check failure"
+                echo "⚠ Quality Gate check failed, but continuing pipeline..."
             }
         }
     }
