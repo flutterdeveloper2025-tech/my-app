@@ -116,28 +116,33 @@ stage('Quality Gate') {
         }
 
         stage('Update Deployment YAML & Push') {
-            steps {
-                dir('manifests') {
-                    withCredentials([string(credentialsId: 'github_pat', variable: 'GITHUB_PAT')]) {
-                        sh """
-                            sed -i 's|image:.*|image: $FULL_IMAGE|' dev/dev-deployment.yaml
+    steps {
+        dir('manifests') {
+            withCredentials([string(credentialsId: 'github_pat', variable: 'GITHUB_PAT')]) {
+                sh """
+                    # 1. Dev Deployment YAML me image update karo
+                    sed -i 's|image:.*|image: $FULL_IMAGE|' dev/dev-deployment.yaml
 
-                            git config user.email "jenkins@example.com"
-                            git config user.name "Jenkins CI"
+                    # 2. Git config set karo (Jenkins user)
+                    git config user.email "jenkins@example.com"
+                    git config user.name "Jenkins CI"
 
-                            git remote set-url origin https://\$GITHUB_PAT@github.com/flutterdeveloper2025-tech/my-app-manifests.git
-                            if ! git diff --quiet dev/dev-deployment.yaml; then
-                                git add dev/dev-deployment.yaml
-                                git commit -m "[ci skip] Update DEV image to $FULL_IMAGE"
-                                git push origin dev --force
-                            else
-                                echo "✅ No changes in deployment YAML, skipping push"
-                            fi
-                        """
-                    }
-                }
+                    # 3. Remote URL me PAT use karo
+                    git remote set-url origin https://\$GITHUB_PAT@github.com/flutterdeveloper2025-tech/my-app-manifests.git
+
+                    # 4. Agar changes hai to commit & push karo
+                    if ! git diff --quiet dev/dev-deployment.yaml; then
+                        git add dev/dev-deployment.yaml
+                        git commit -m "[ci skip] Update DEV image to $FULL_IMAGE"
+                        git push origin dev --force
+                    else
+                        echo "✅ No changes in deployment YAML, skipping push"
+                    fi
+                """
             }
         }
+    }
+}
 
 
         stage('Smoke Test') {
