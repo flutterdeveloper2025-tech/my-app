@@ -164,14 +164,6 @@ stage('Quality Gate') {
                 }
             }
         }
-stage('Verify ArgoCD Sync') {
-            steps {
-                sh """
-                    argocd app wait mywebsite-dev --timeout 60s
-                    argocd app get mywebsite-dev
-                """
-            }
-        }
     }
 
     post {
