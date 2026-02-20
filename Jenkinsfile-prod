@@ -168,29 +168,40 @@ pipeline {
         }
 
         stage('Update Deployment YAML & Push') {
-            steps {
-                dir('manifests') {
-                    withCredentials([string(credentialsId: 'github_pat', variable: 'GITHUB_PAT')]) {
-                        sh """
-                        sed -i 's|image:.*|image: $FULL_IMAGE|' prod/prod-deployment.yaml
+    steps {
+        dir('manifests') {
+            withCredentials([string(credentialsId: 'github_pat', variable: 'GITHUB_PAT')]) {
+                sh """
+                    # 1️⃣ Update PROD deployment image
+                    sed -i 's|image:.*|image: $FULL_IMAGE|' prod/prod-deployment.yaml
 
-                        git config user.email "jenkins@example.com"
-                        git config user.name "Jenkins CI"
+                    # 2️⃣ Git config
+                    git config user.email "jenkins@example.com"
+                    git config user.name "Jenkins CI"
+                    git remote set-url origin https://\$GITHUB_PAT@github.com/flutterdeveloper2025-tech/my-app-manifests.git
 
-                        git remote set-url origin https://\$GITHUB_PAT@github.com/flutterdeveloper2025-tech/my-app-manifests.git
+                    # 3️⃣ Commit deployment changes (if any)
+                    if ! git diff --quiet prod/prod-deployment.yaml; then
+                        git add prod/prod-deployment.yaml
+                        git commit -m "[ci skip] Update PROD image to $FULL_IMAGE"
+                    fi
 
-                        if ! git diff --quiet prod/prod-deployment.yaml; then
-                            git add prod/prod-deployment.yaml
-                            git commit -m "[ci skip] Update PROD image to $FULL_IMAGE"
-                            git push origin ${BRANCH_NAME} --force
-                        else
-                            echo "✅ No changes in deployment YAML, skipping push"
+                    # 4️⃣ Commit HPA file if exists or changed
+                    if [ -f prod/hpa.yaml ]; then
+                        if ! git diff --quiet prod/hpa.yaml; then
+                            git add prod/hpa.yaml
+                            git commit -m "[ci skip] Add/Update HPA for PROD"
                         fi
-                        """
-                    }
-                }
+                    fi
+
+                    # 5️⃣ Push changes safely (no force)
+                    git push origin ${BRANCH_NAME} || echo "✅ No changes to push"
+                """
             }
         }
+    }
+}
+
 
         stage('Smoke Test') {
             steps {
